@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>DotnetHtop</RootNamespace>
+    <AssemblyName>dtop</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.0.6</Version>
+    <Authors>Hadi Cahyadi</Authors>
+    <Company>cumulus13</Company>
+    <Product>Dotnet Htop</Product>
+    <Description>A lightweight, cross-platform terminal process monitor written in **C# / .NET.</Description>
+    <Copyright>Copyright © 2026</Copyright>
+  </PropertyGroup>
+
+  
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('windows'))">
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  
+
+  
+  <ItemGroup>
+    <None Update="dtop.png" Condition="Exists('dtop.png')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="dtop.json" Condition="Exists('dtop.json')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

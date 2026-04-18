@@ -1,0 +1,80 @@
+{
+  "refreshIntervalMs": 1000,
+  "maxProcessRows": 40,
+  "cpuHighThreshold": 80.0,
+  "memoryHighThresholdPercent": 80.0,
+  "notificationCooldownSeconds": 30,
+
+  "growl": {
+    "enabled": false,
+    "host": "localhost",
+    "port": 23053,
+    "password": "",
+    "appName": "DTOP",
+    "cooldownSeconds": 60
+  },
+
+  "email": {
+    "enabled": false,
+    "smtpHost": "smtp.gmail.com",
+    "smtpPort": 587,
+    "useSsl": true,
+    "username": "your@gmail.com",
+    "password": "your-app-password",
+    "from": "your@gmail.com",
+    "to": "alert@example.com",
+    "cooldownSeconds": 300,
+    "maxPerHour": 6
+  },
+
+  "cpuThresholds": [
+    { "threshold":  0, "color": "#AAAAAA" },
+    { "threshold": 20, "color": "#FFFF00" },
+    { "threshold": 50, "color": "#FF8800" },
+    { "threshold": 80, "color": "#FF0000" }
+  ],
+  "memoryThresholds": [
+    { "threshold":  0, "color": "#AAAAAA" },
+    { "threshold": 30, "color": "#00FFFF" },
+    { "threshold": 60, "color": "#FF8800" },
+    { "threshold": 85, "color": "#FF0000" }
+  ],
+
+  "rowHighlights": [
+    {
+      "comment": "95-100% CPU → white text on red background",
+      "metric": "cpu", "min": 95, "max": 100,
+      "fg": "#FFFFFF", "bg": "#CC0000"
+    },
+    {
+      "comment": "85-94% CPU → black text on yellow background",
+      "metric": "cpu", "min": 85, "max": 94,
+      "fg": "#000000", "bg": "#DDAA00"
+    },
+    {
+      "comment": "75-84% CPU → white text on magenta background",
+      "metric": "cpu", "min": 75, "max": 84,
+      "fg": "#FFFFFF", "bg": "#884488"
+    },
+    {
+      "comment": "65-74% CPU → black text on green background",
+      "metric": "cpu", "min": 65, "max": 74,
+      "fg": "#000000", "bg": "#228822"
+    },
+    {
+      "comment": "55-64% CPU → black text on cyan background",
+      "metric": "cpu", "min": 55, "max": 64,
+      "fg": "#000000", "bg": "#119999"
+    },
+    {
+      "comment": "Memory: 90-100% → white on red",
+      "metric": "memory", "min": 90, "max": 100,
+      "fg": "#FFFFFF", "bg": "#CC0000"
+    },
+    {
+      "comment": "Memory: 75-89% → black on yellow",
+      "metric": "memory", "min": 75, "max": 89,
+      "fg": "#000000", "bg": "#DDAA00"
+    }
+  ]
+}
