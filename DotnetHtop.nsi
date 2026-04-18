@@ -2,7 +2,7 @@
 ; Author: Hadi Cahyadi <cumulus13@gmail.com>
 
 !define APP_NAME "DotnetHtop"
-!define APP_VERSION "1.0.6"
+!define APP_VERSION "1.0.7"
 !define APP_PUBLISHER "Hadi Cahyadi"
 !define APP_URL "https://github.com/cumulus13/DotnetHtop"
 !define DOTNET_VERSION "8.0"

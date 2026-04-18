@@ -1,7 +1,7 @@
 # DTOP — .NET Process Monitor
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/cumulus13/dtop/master/logo.png" alt="Logo" width="320">
+  <img src="https://raw.githubusercontent.com/cumulus13/dtop/master/logo.png" alt="Logo" width="420">
 </p>
 
 
@@ -405,6 +405,7 @@ list collection involves two snapshots 1 second apart by default.
 
 MIT — do whatever you want with it.
 
+---
 
 ## 👤 Author
         
