@@ -53,6 +53,13 @@ public static class Program
         try { state.Notifications = new NotificationService(cfg); }
         catch (Exception ex) { ColorConsole.WriteWarning($"Notification init failed: {ex.Message}"); }
 
+        // Init accurate system metrics (GetSystemTimes CPU + Available MBytes RAM).
+        // This blocks for ~1 s to seed the CPU baseline — same as CpuMonitor.
+        SystemMetrics.Init(cfg.Display.SmoothWindow);
+        // Override TotalMemoryMb from the accurate counter source
+        if (SystemMetrics.TotalRamBytes > 0)
+            state.TotalMemoryMb = SystemMetrics.TotalRamBytes / 1024 / 1024;
+
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; state.ShouldExit = true; };
 
         using var watcher = new ConfigWatcher(state);
@@ -102,10 +109,15 @@ public static class Program
             var elapsedMs = sw.Elapsed.TotalMilliseconds;
             var processes = ProcessCollector.Compute(snap1, snap2, elapsedMs, state.Cores);
 
-            var avgCpu    = Math.Min(100, processes.Sum(p => p.CpuPercent) / state.Cores);
-            var usedMemMb = processes.Sum(p => p.MemoryMb);
-            var memPct    = state.TotalMemoryMb > 0
-                ? Math.Min(100, (usedMemMb / (double)state.TotalMemoryMb) * 100.0) : 0;
+            // System-wide CPU and RAM from GetSystemTimes + PerformanceCounter.
+            // These match Task Manager / Process Hacker exactly.
+            // The process list uses its own per-process delta (correct for the table).
+            SystemMetrics.Update(state.Config.Display.SmoothWindow);
+            var avgCpu    = SystemMetrics.CpuPercent;
+            var memPct    = SystemMetrics.RamPercent;
+
+            // usedMemMb still from process list — only used for alert text, not the bar
+            var usedMemMb = (long)(memPct / 100.0 * (double)state.TotalMemoryMb);
 
             CheckAlerts(state, avgCpu, memPct, usedMemMb);
 
@@ -226,7 +238,9 @@ public static class Program
                 Renderer.Invalidate();
                 break;
 
-            // ── [0] / [F5] Minimal mode — collapse all detail ─────────────────
+            // ── [0] Minimal mode — collapse / restore all detail ──────────────
+            // NOTE: [M] = sort by Memory (existing dtop key). No conflict.
+            // [0] is the minimal toggle; F5 also works as an alternative.
             case '0':
                 DisplayState.ToggleMinimal(disp);
                 Renderer.Invalidate();
@@ -242,8 +256,6 @@ public static class Program
         if (key == ConsoleKey.UpArrow)   { state.SortDescending = false; Renderer.Invalidate(); }
         if (key == ConsoleKey.DownArrow) { state.SortDescending = true;  Renderer.Invalidate(); }
     }
-
-    // ── Alerts ────────────────────────────────────────────────────────────────
 
     private static void CheckAlerts(AppState state, double avgCpu, double memPct, long usedMemMb)
     {

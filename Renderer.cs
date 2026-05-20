@@ -269,7 +269,7 @@ public static class Renderer
         L(k2, CDim + k2 + Reset);
 
         // Display-section shortcut hint
-        const string k3 = "  View:   1-header  2-bars  3-sparkline  4-cols  K-hint  M-minimal";
+        const string k3 = "  View:   1-header  2-bars  3-sparkline  4-cols  K-hint  0-minimal";
         L(k3, CDim + k3 + Reset);
     }
 
@@ -291,9 +291,8 @@ public static class Renderer
 
         // MEM
         var memAnsi = PctAnsi(mem);
-        var memExtra = totalMb > 0
-            ? $"{usedMb / 1024.0:F1}/{totalMb / 1024.0:F0} GB"
-            : "";
+        // Use SystemMetrics for the accurate GB label (not process-sum which under-counts)
+        var memExtra = SystemMetrics.RamLabel();
         var memPlain = $"MEM {mem,5:F1}% {memExtra}";
         L(memPlain + BarPlainKey(mem, bw), sb =>
         {
@@ -420,17 +419,22 @@ public static class Renderer
             return $"\x1b[{kc}m[{k}]\x1b[0m\x1b[{lc}m{lbl}\x1b[0m";
         }
 
+        // "Minimal" is lit when we ARE in minimal (i.e. detail is hidden)
         bool anyDetail = DisplayState.Eff(DisplayState.OvHeader,    disp.ShowHeader)
                       || DisplayState.Eff(DisplayState.OvSparkline, disp.ShowSparkline)
                       || DisplayState.Eff(DisplayState.OvColHeader, disp.ShowColumnHeader);
 
+        // Display-section keys: 1 2 3 4 K 0
+        // Sort keys shown separately in header (C M I E H S D A)
+        // App keys: N G L P T R Q
         var hint = "  "
-            + K("1", "Header ",  DisplayState.Eff(DisplayState.OvHeader,    disp.ShowHeader))    + "  "
-            + K("2", "Bars ",    DisplayState.Eff(DisplayState.OvSysBar,    disp.ShowSysBars))   + "  "
-            + K("3", "Spark ",   DisplayState.Eff(DisplayState.OvSparkline, disp.ShowSparkline)) + "  "
+            + "\x1b[38;2;80;80;80mView: \x1b[0m"
+            + K("1", "Header ",  DisplayState.Eff(DisplayState.OvHeader,    disp.ShowHeader))       + "  "
+            + K("2", "Bars ",    DisplayState.Eff(DisplayState.OvSysBar,    disp.ShowSysBars))      + "  "
+            + K("3", "Spark ",   DisplayState.Eff(DisplayState.OvSparkline, disp.ShowSparkline))    + "  "
             + K("4", "Cols ",    DisplayState.Eff(DisplayState.OvColHeader, disp.ShowColumnHeader)) + "  "
-            + K("K", "Hint ",    true)             + "  "
-            + K("M", "Minimal ", !anyDetail)        + "  "
+            + K("K", "Hint ",    DisplayState.Eff(DisplayState.OvHint,      disp.ShowHint))         + "  "
+            + K("0", "Minimal ", !anyDetail)   + "  "   // 0=minimal (M=sort-memory, no conflict)
             + "\x1b[38;2;80;80;80m[Q]Quit\x1b[0m";
 
         L("|hint|" + anyDetail, hint);

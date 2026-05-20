@@ -10,22 +10,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.0.8</Version>
+    <Version>1.0.9</Version>
     <Authors>Hadi Cahyadi</Authors>
     <Company>cumulus13</Company>
     <Product>Dotnet Htop</Product>
-    <Description>A lightweight, cross-platform terminal process monitor written in **C# / .NET.</Description>
+    <Description>A lightweight, cross-platform terminal process monitor written in C# / .NET.</Description>
     <Copyright>Copyright © 2026</Copyright>
+    
+    <NoWarn>CA1416</NoWarn>
   </PropertyGroup>
 
-  
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('windows'))">
     <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
   </ItemGroup>
 
-  
-
-  
   <ItemGroup>
     <None Update="dtop.png" Condition="Exists('dtop.png')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

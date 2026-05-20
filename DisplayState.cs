@@ -37,8 +37,9 @@ public static class DisplayState
     public static bool IsOverridden(int ov) => ov != -1;
 
     // ── Minimal mode ─────────────────────────────────────────────────────────
-    // [M] collapses header, sparkline, column header, and hint to bars-only.
-    // [M] again restores all overrides to -1 (follow config).
+    // [0] collapses header, sparkline, column header, and hint to bars-only.
+    // [0] again restores all overrides to -1 (follow config).
+    // NOTE: [M] is NOT used here — in dtop, M = sort by Memory (no conflict).
 
     public static void ToggleMinimal(AppDisplayConfig cfg)
     {

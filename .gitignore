@@ -21,3 +21,5 @@ obj/
 
 # Added entries (1 items)
 gitignore_backup/
+# PT backup directory
+.pt/
