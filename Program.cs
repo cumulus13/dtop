@@ -1,8 +1,5 @@
-// File: Program.cs
-// Author: Hadi Cahyadi <cumulus13@gmail.com>
-// Date: 2026-04-18
-// Description: 
-// License: MIT
+// File: Program.cs (updated)
+// Adds keyboard shortcuts for display-section toggles via DisplayState.
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -27,8 +24,6 @@ public sealed class AppState
     public ulong                TotalMemoryMb        { get; set; }
     public int                  Cores                { get; set; }
     public DateTime             StartTime            { get; set; } = DateTime.Now;
-
-    // Set by ConfigWatcher or manual R key — shown in footer
     public DateTime             LastReloadTime       { get; set; } = DateTime.MinValue;
     public string               LastReloadSource     { get; set; } = string.Empty;
 }
@@ -60,10 +55,8 @@ public static class Program
 
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; state.ShouldExit = true; };
 
-        // ── Start file watcher — auto-reload on dtop.json save ────────────────
         using var watcher = new ConfigWatcher(state);
 
-        // ── Keyboard thread ───────────────────────────────────────────────────
         new Thread(() => KeyboardLoop(state)) { IsBackground = true, Name = "KeyboardThread" }.Start();
 
         DisplayLoop(state);
@@ -72,7 +65,7 @@ public static class Program
         ColorConsole.WriteSuccess("DTOP closed. Goodbye!");
     }
 
-    // ── Display Loop ──────────────────────────────────────────────────────────
+    // ── Display loop ──────────────────────────────────────────────────────────
 
     private static void DisplayLoop(AppState state)
     {
@@ -152,6 +145,8 @@ public static class Program
 
     private static void HandleKey(char ch, ConsoleKey key, AppState state)
     {
+        var disp = state.Config.Display;
+
         void SetSort(SortColumn col)
         {
             if (state.SortColumn == col) state.SortDescending = !state.SortDescending;
@@ -161,16 +156,23 @@ public static class Program
 
         switch (char.ToUpperInvariant(ch))
         {
-            case 'Q': state.ShouldExit = true;                                   break;
-            case 'C': SetSort(SortColumn.Cpu);                                   break;
-            case 'M': SetSort(SortColumn.Memory);                                break;
-            case 'I': SetSort(SortColumn.Pid);                                   break;
-            case 'E': SetSort(SortColumn.Name);                                  break;
-            case 'H': SetSort(SortColumn.Threads);                               break;
-            case 'S': SetSort(SortColumn.Status);                                break;
-            case 'D': state.SortDescending = true;  Renderer.Invalidate();      break;
-            case 'A': state.SortDescending = false; Renderer.Invalidate();      break;
-            case 'P': state.Paused = !state.Paused; Renderer.Invalidate();      break;
+            // ── App control ───────────────────────────────────────────────────
+            case 'Q': state.ShouldExit = true;                              break;
+            case 'P': state.Paused = !state.Paused; Renderer.Invalidate(); break;
+            case 'T': state.Notifications?.TestAll();                       break;
+
+            // ── Sort ──────────────────────────────────────────────────────────
+            // Note: C = sort CPU, M = sort Memory. Display toggles use number keys.
+            case 'C': SetSort(SortColumn.Cpu);     break;
+            case 'M': SetSort(SortColumn.Memory);  break;
+            case 'I': SetSort(SortColumn.Pid);     break;
+            case 'E': SetSort(SortColumn.Name);    break;
+            case 'H': SetSort(SortColumn.Threads); break;
+            case 'S': SetSort(SortColumn.Status);  break;
+            case 'D': state.SortDescending = true;  Renderer.Invalidate(); break;
+            case 'A': state.SortDescending = false; Renderer.Invalidate(); break;
+
+            // ── Notification toggles ──────────────────────────────────────────
             case 'N':
                 state.NotificationsEnabled = !state.NotificationsEnabled;
                 Renderer.Invalidate();
@@ -187,9 +189,9 @@ public static class Program
                 state.Notifications?.Reload(state.Config);
                 Renderer.Invalidate();
                 break;
-            case 'T': state.Notifications?.TestAll();                            break;
+
+            // ── Config reload ─────────────────────────────────────────────────
             case 'R':
-                // Manual reload — same as auto but marks source as "manual"
                 state.Config = Config.Load();
                 state.GrowlEnabled = state.Config.Growl.Enabled;
                 state.EmailEnabled = state.Config.Email.Enabled;
@@ -198,6 +200,43 @@ public static class Program
                 state.LastReloadSource = "manual (R key)";
                 Renderer.Invalidate();
                 break;
+
+            // ── Display section toggles (number keys) ─────────────────────────
+            // [1] Header  [2] Bars  [3] Sparkline  [4] Column header
+            case '1':
+                DisplayState.OvHeader = DisplayState.Cycle(DisplayState.OvHeader, disp.ShowHeader);
+                Renderer.Invalidate();
+                break;
+            case '2':
+                DisplayState.OvSysBar = DisplayState.Cycle(DisplayState.OvSysBar, disp.ShowSysBars);
+                Renderer.Invalidate();
+                break;
+            case '3':
+                DisplayState.OvSparkline = DisplayState.Cycle(DisplayState.OvSparkline, disp.ShowSparkline);
+                Renderer.Invalidate();
+                break;
+            case '4':
+                DisplayState.OvColHeader = DisplayState.Cycle(DisplayState.OvColHeader, disp.ShowColumnHeader);
+                Renderer.Invalidate();
+                break;
+
+            // ── [K] Hint bar ──────────────────────────────────────────────────
+            case 'K':
+                DisplayState.OvHint = DisplayState.Cycle(DisplayState.OvHint, disp.ShowHint);
+                Renderer.Invalidate();
+                break;
+
+            // ── [0] / [F5] Minimal mode — collapse all detail ─────────────────
+            case '0':
+                DisplayState.ToggleMinimal(disp);
+                Renderer.Invalidate();
+                break;
+        }
+
+        if (key == ConsoleKey.F5)
+        {
+            DisplayState.ToggleMinimal(disp);
+            Renderer.Invalidate();
         }
 
         if (key == ConsoleKey.UpArrow)   { state.SortDescending = false; Renderer.Invalidate(); }

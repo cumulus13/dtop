@@ -1,70 +1,34 @@
-// File: Config.cs
-// Author: Hadi Cahyadi <cumulus13@gmail.com>
-// Date: 2026-04-18
-// Description: 
-// License: MIT
+// File: Config.cs (updated)
+// Adds Display section for per-section show/hide toggles and bar settings.
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DotnetHtop;
 
-/// <summary>
-/// A color threshold entry for text-only coloring (bars, column values).
-/// Used by the old cpuThresholds / memoryThresholds fields.
-/// </summary>
 public class ColorMapping
 {
-    [JsonPropertyName("threshold")]
-    public double Threshold { get; set; }
-
-    [JsonPropertyName("color")]
-    public string Color { get; set; } = "#FFFFFF";
+    [JsonPropertyName("threshold")] public double Threshold { get; set; }
+    [JsonPropertyName("color")]     public string Color     { get; set; } = "#FFFFFF";
 }
 
-/// <summary>
-/// A row highlight rule: if a process's CPU or memory % falls within
-/// [min, max], the entire row is painted with the given fg/bg colors.
-///
-/// Colors are 24-bit hex RGB: "#RRGGBB"
-/// Use "none" or "" for bg to keep transparent (no background).
-///
-/// Rules are evaluated in order — first match wins.
-/// </summary>
 public class RowHighlight
 {
-    /// <summary>Minimum % (inclusive). Default 0.</summary>
-    [JsonPropertyName("min")]
-    public double Min { get; set; } = 0;
-
-    /// <summary>Maximum % (inclusive). Default 100.</summary>
-    [JsonPropertyName("max")]
-    public double Max { get; set; } = 100;
-
-    /// <summary>Foreground (text) color. "#RRGGBB"</summary>
-    [JsonPropertyName("fg")]
-    public string Fg { get; set; } = "#FFFFFF";
-
-    /// <summary>Background color. "#RRGGBB" or "none" for transparent.</summary>
-    [JsonPropertyName("bg")]
-    public string Bg { get; set; } = "none";
-
-    /// <summary>
-    /// Which metric triggers this rule: "cpu" or "memory".
-    /// Defaults to "cpu".
-    /// </summary>
-    [JsonPropertyName("metric")]
-    public string Metric { get; set; } = "cpu";
+    [JsonPropertyName("min")]    public double Min    { get; set; } = 0;
+    [JsonPropertyName("max")]    public double Max    { get; set; } = 100;
+    [JsonPropertyName("fg")]     public string Fg     { get; set; } = "#FFFFFF";
+    [JsonPropertyName("bg")]     public string Bg     { get; set; } = "none";
+    [JsonPropertyName("metric")] public string Metric { get; set; } = "cpu";
 }
 
 public class GrowlConfig
 {
-    [JsonPropertyName("enabled")]    public bool   Enabled         { get; set; } = false;
-    [JsonPropertyName("host")]       public string Host            { get; set; } = "localhost";
-    [JsonPropertyName("port")]       public int    Port            { get; set; } = 23053;
-    [JsonPropertyName("password")]   public string Password        { get; set; } = "";
-    [JsonPropertyName("appName")]    public string AppName         { get; set; } = "DTOP";
-    [JsonPropertyName("cooldownSeconds")] public int CooldownSeconds { get; set; } = 60;
+    [JsonPropertyName("enabled")]         public bool   Enabled         { get; set; } = false;
+    [JsonPropertyName("host")]            public string Host            { get; set; } = "localhost";
+    [JsonPropertyName("port")]            public int    Port            { get; set; } = 23053;
+    [JsonPropertyName("password")]        public string Password        { get; set; } = "";
+    [JsonPropertyName("appName")]         public string AppName         { get; set; } = "DTOP";
+    [JsonPropertyName("cooldownSeconds")] public int    CooldownSeconds { get; set; } = 60;
 }
 
 public class EmailConfig
@@ -101,13 +65,15 @@ public class Config
     [JsonPropertyName("defaultForegroundColor")]
     public string DefaultForegroundColor { get; set; } = "#FFFFFF";
 
+    // ── NEW: display section ──────────────────────────────────────────────────
+    [JsonPropertyName("display")]
+    public AppDisplayConfig Display { get; set; } = new();
+
     [JsonPropertyName("growl")]
     public GrowlConfig Growl { get; set; } = new();
 
     [JsonPropertyName("email")]
     public EmailConfig Email { get; set; } = new();
-
-    // ── Bar / column value colors (text only, no background) ─────────────────
 
     [JsonPropertyName("cpuThresholds")]
     public List<ColorMapping> CpuThresholds { get; set; } =
@@ -127,10 +93,6 @@ public class Config
         new() { Threshold = 85, Color = "#FF0000" },
     ];
 
-    // ── Row highlight rules (fg + bg for the whole process row) ──────────────
-    // Rules are checked in order. First match wins.
-    // metric: "cpu" or "memory"
-
     [JsonPropertyName("rowHighlights")]
     public List<RowHighlight> RowHighlights { get; set; } =
     [
@@ -139,7 +101,6 @@ public class Config
         new() { Metric="cpu", Min=75, Max=84,  Fg="#FFFFFF", Bg="#884488" },
         new() { Metric="cpu", Min=65, Max=74,  Fg="#000000", Bg="#228822" },
         new() { Metric="cpu", Min=55, Max=64,  Fg="#000000", Bg="#119999" },
-        // memory rules — evaluated only if no cpu rule matched
         new() { Metric="memory", Min=90, Max=100, Fg="#FFFFFF", Bg="#CC0000" },
         new() { Metric="memory", Min=75, Max=89,  Fg="#000000", Bg="#DDAA00" },
     ];
@@ -172,7 +133,6 @@ public class Config
                 ColorConsole.WriteWarning($"  Could not parse config at {path}: {ex.Message}");
             }
         }
-
         return new Config { LoadedFrom = "(defaults)" };
     }
 
