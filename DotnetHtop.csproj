@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.0.9</Version>
+    <Version>1.0.10</Version>
     <Authors>Hadi Cahyadi</Authors>
     <Company>cumulus13</Company>
     <Product>Dotnet Htop</Product>
@@ -21,7 +21,6 @@
   </PropertyGroup>
 
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('windows'))">
-    <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
   </ItemGroup>
 

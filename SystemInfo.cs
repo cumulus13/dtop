@@ -4,6 +4,10 @@
 // Description: 
 // License: MIT
 
+// Cross-platform system information helpers.
+// WMI / WMIC / PowerShell are NOT used anywhere in this file.
+// Windows RAM is read via GC.GetGCMemoryInfo() (.NET 5+ built-in).
+
 using System.Runtime.InteropServices;
 
 namespace DotnetHtop;
@@ -11,12 +15,16 @@ namespace DotnetHtop;
 public static class SystemInfo
 {
     /// <summary>
-    /// Total physical memory in MB. Cross-platform: .NET 5+ GC info,
-    /// fallback to /proc/meminfo on Linux, sysctl on macOS, then a safe default.
+    /// Total physical memory in MB.
+    /// Sources in priority order — no WMI, no PowerShell:
+    ///   1. GC.GetGCMemoryInfo()   — .NET 5+, all platforms, most reliable
+    ///   2. /proc/meminfo          — Linux fallback
+    ///   3. sysctl hw.memsize      — macOS fallback
+    ///   4. 8192 MB safe default
     /// </summary>
     public static ulong TotalPhysicalMemoryMb()
     {
-        // Best: .NET built-in (works on all platforms, .NET 5+)
+        // 1. .NET built-in (works on Windows, Linux, macOS — no external deps)
         try
         {
             var info = GC.GetGCMemoryInfo();
@@ -25,14 +33,15 @@ public static class SystemInfo
         }
         catch { }
 
-        // Linux fallback: /proc/meminfo
+        // 2. Linux: /proc/meminfo
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             try
             {
                 foreach (var line in File.ReadLines("/proc/meminfo"))
                 {
-                    if (!line.StartsWith("MemTotal:", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!line.StartsWith("MemTotal:", StringComparison.OrdinalIgnoreCase))
+                        continue;
                     var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 2 && ulong.TryParse(parts[1], out var kb))
                         return kb / 1024;
@@ -41,7 +50,7 @@ public static class SystemInfo
             catch { }
         }
 
-        // macOS fallback: sysctl
+        // 3. macOS: sysctl (native binary, not PowerShell)
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             try
@@ -49,8 +58,8 @@ public static class SystemInfo
                 var psi = new System.Diagnostics.ProcessStartInfo("sysctl", "-n hw.memsize")
                 {
                     RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true,
                 };
                 using var p = System.Diagnostics.Process.Start(psi)!;
                 var output = p.StandardOutput.ReadToEnd().Trim();
@@ -61,41 +70,22 @@ public static class SystemInfo
             catch { }
         }
 
-#if WINDOWS
-        // Windows fallback via WMI
-        try
-        {
-            using var searcher = new System.Management.ManagementObjectSearcher(
-                "SELECT TotalVisibleMemorySize FROM Win32_OperatingSystem");
-            foreach (System.Management.ManagementObject obj in searcher.Get())
-            {
-                var kb = Convert.ToUInt64(obj["TotalVisibleMemorySize"]);
-                return kb / 1024;
-            }
-        }
-        catch { }
-#endif
-
-        return 8192; // safe fallback: 8 GB
+        // 4. Safe default — 8 GB
+        return 8192;
     }
 
     public static int LogicalCoreCount() => Environment.ProcessorCount;
 
     public static string OsSummary()
     {
-        var os = RuntimeInformation.OSDescription;
-
-        // Windows: "Microsoft Windows 10.0.22621" → "Windows 11 (X64)"
-        // Trim long build strings to just major name + arch
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            // Extract version number to determine Windows 10 vs 11
-            var ver = Environment.OSVersion.Version;
+            var ver  = Environment.OSVersion.Version;
             var name = ver.Build >= 22000 ? "Windows 11" : "Windows 10";
             return $"{name} (build {ver.Build}) [{RuntimeInformation.ProcessArchitecture}]";
         }
 
-        // Linux/macOS: truncate at 40 chars to avoid overflow
+        var os = RuntimeInformation.OSDescription;
         if (os.Length > 40) os = os[..40].TrimEnd() + "…";
         return $"{os} [{RuntimeInformation.ProcessArchitecture}]";
     }

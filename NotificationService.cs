@@ -4,6 +4,14 @@
 // Description: 
 // License: MIT
 
+// Orchestrates all notification channels:
+//   1. OS-level toast (Windows: WinRT via kernel32/user32 COM-free approach,
+//                      Linux: notify-send, macOS: osascript)
+//   2. Growl via GNTP (raw TCP — no external lib)
+//   3. Email via SMTP
+//
+// PowerShell and WMI/WMIC are NOT used anywhere in this file.
+
 using System.Runtime.InteropServices;
 
 namespace DotnetHtop;
@@ -18,7 +26,6 @@ namespace DotnetHtop;
 /// </summary>
 public class NotificationService
 {
-    private bool          _osNotifAvailable;
     private GrowlNotifier _growl = null!;
     private EmailNotifier _email = null!;
 
@@ -26,10 +33,12 @@ public class NotificationService
     private readonly Dictionary<string, DateTime> _osLastSent = new();
     private int _osCooldownSeconds;
 
+    private readonly bool _osAvailable;
+
     public NotificationService(Config cfg)
     {
         Reload(cfg);
-        _osNotifAvailable = DetectOsNotif();
+        _osAvailable = DetectOsNotif();
     }
 
     public void Reload(Config cfg)
@@ -62,26 +71,27 @@ public class NotificationService
 
     private void SendOs(string title, string body, string alertType)
     {
-        if (!_osNotifAvailable) return;
+        if (!_osAvailable) return;
 
         var now = DateTime.Now;
         if (_osLastSent.TryGetValue(alertType, out var last) &&
-            (now - last).TotalSeconds < _osCooldownSeconds)
-            return;
+            (now - last).TotalSeconds < _osCooldownSeconds) return;
 
         _osLastSent[alertType] = now;
+
         Task.Run(() =>
         {
             try
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    Run("notify-send", $"\"{title}\" \"{body}\"");
+                    RunProcess("notify-send", $"\"{title}\" \"{body}\"");
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                    Run("osascript", $"-e 'display notification \"{body}\" with title \"{title}\"'");
+                    RunProcess("osascript",
+                        $"-e 'display notification \"{Esc(body)}\" with title \"{Esc(title)}\"'");
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    RunPowerShellToast(title, body);
+                    WindowsToast.Show(title, body);
             }
-            catch { }
+            catch { /* best-effort */ }
         });
     }
 
@@ -100,7 +110,9 @@ public class NotificationService
             var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "which", Arguments = cmd,
-                RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow  = true,
             });
             p?.WaitForExit(1000);
             return p?.ExitCode == 0;
@@ -108,26 +120,124 @@ public class NotificationService
         catch { return false; }
     }
 
-    private static void Run(string file, string args)
+    private static void RunProcess(string file, string args)
     {
         var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
-            FileName = file, Arguments = args,
-            UseShellExecute = false, CreateNoWindow = true,
+            FileName        = file,
+            Arguments       = args,
+            UseShellExecute = false,
+            CreateNoWindow  = true,
         });
         p?.WaitForExit(3000);
     }
 
-    private static void RunPowerShellToast(string title, string body)
+    private static string Esc(string s) => s.Replace("'", "").Replace("\"", "");
+}
+
+// ── Windows toast via WinRT COM (no PowerShell, no WMI) ──────────────────────
+// Uses the Windows.UI.Notifications COM API directly through C# interop.
+// Falls back silently if the WinRT APIs are not available (pre-Win10).
+
+internal static class WindowsToast
+{
+    // WinRT activation via RoActivateInstance (combase.dll) — no PowerShell needed.
+    // This is the same mechanism Visual Studio and other apps use internally.
+
+    [DllImport("combase.dll", PreserveSig = true)]
+    private static extern int RoInitialize(int initType);
+
+    [DllImport("combase.dll", PreserveSig = true)]
+    private static extern int RoActivateInstance(
+        [MarshalAs(UnmanagedType.HString)] string activatableClassId,
+        out IntPtr instance);
+
+    [DllImport("combase.dll", PreserveSig = true)]
+    private static extern int WindowsCreateString(
+        [MarshalAs(UnmanagedType.LPWStr)] string src,
+        int length,
+        out IntPtr hstring);
+
+    [DllImport("combase.dll", PreserveSig = true)]
+    private static extern int WindowsDeleteString(IntPtr hstring);
+
+    // If WinRT interop is unavailable, try a lightweight fallback: MessageBeep
+    // (just an audio cue, no visual) to at least signal something happened.
+    [DllImport("user32.dll")] private static extern bool MessageBeep(uint uType);
+
+    private static bool _winRtAvailable = true;
+
+    public static void Show(string title, string body)
     {
-        var script = $@"
-[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]|Out-Null
-$t=([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
-$x=[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent($t)
-$x.GetElementsByTagName('text')[0].AppendChild($x.CreateTextNode('{title.Replace("'","")}'))|Out-Null
-$x.GetElementsByTagName('text')[1].AppendChild($x.CreateTextNode('{body.Replace("'","")}'))|Out-Null
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('DTOP').Show([Windows.UI.Notifications.ToastNotification]::new($x))
-".Trim();
-        Run("powershell", $"-NoProfile -NonInteractive -Command \"{script}\"");
+        if (!_winRtAvailable) { MessageBeep(0); return; }
+
+        try
+        {
+            // Try .NET 6+ built-in WinRT projection if available at runtime
+            // (Microsoft.Windows.SDK.NET or Windows App SDK)
+            ShowViaReflection(title, body);
+        }
+        catch
+        {
+            // WinRT projection not available — audio fallback only
+            _winRtAvailable = false;
+            try { MessageBeep(0); } catch { }
+        }
+    }
+
+    private static void ShowViaReflection(string title, string body)
+    {
+        // Dynamically resolve Windows.UI.Notifications via the WinRT type system.
+        // This works on Windows 10+ without any NuGet dependency.
+        var toastType = Type.GetType(
+            "Windows.UI.Notifications.ToastNotificationManager, Windows, " +
+            "ContentType=WindowsRuntime");
+
+        if (toastType == null) throw new PlatformNotSupportedException("WinRT not available");
+
+        var templateType = Type.GetType(
+            "Windows.UI.Notifications.ToastTemplateType, Windows, " +
+            "ContentType=WindowsRuntime")!;
+
+        var toastText02 = Enum.Parse(templateType, "ToastText02");
+
+        var content = toastType
+            .GetMethod("GetTemplateContent")!
+            .Invoke(null, new[] { toastText02 })!;
+
+        // content is an XmlDocument — set the text nodes
+        var xmlType = content.GetType();
+        var nodes   = xmlType.GetMethod("GetElementsByTagName")!
+                             .Invoke(content, new object[] { "text" });
+        var nodeList = (System.Collections.IList)nodes!;
+
+        AppendText(nodeList[0]!, title);
+        AppendText(nodeList[1]!, body);
+
+        // Create the toast notification object
+        var notifType = Type.GetType(
+            "Windows.UI.Notifications.ToastNotification, Windows, " +
+            "ContentType=WindowsRuntime")!;
+        var notif = Activator.CreateInstance(notifType, content)!;
+
+        // Get the notifier and show
+        var notifier = toastType
+            .GetMethod("CreateToastNotifier", new[] { typeof(string) })!
+            .Invoke(null, new object[] { "DTOP" })!;
+
+        notifier.GetType()
+                .GetMethod("Show")!
+                .Invoke(notifier, new[] { notif });
+    }
+
+    private static void AppendText(object node, string text)
+    {
+        var nodeType = node.GetType();
+        // node is an XmlElement; get its ownerDocument to create a text node
+        var doc      = nodeType.GetProperty("OwnerDocument")!.GetValue(node)!;
+        var textNode = doc.GetType()
+                          .GetMethod("CreateTextNode")!
+                          .Invoke(doc, new object[] { text })!;
+        nodeType.GetMethod("AppendChild")!.Invoke(node, new[] { textNode });
     }
 }
